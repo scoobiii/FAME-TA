@@ -17,6 +17,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
     budget: 0
   });
   const [feedback, setFeedback] = useState(project.feedback || '');
+  const MAX_FEEDBACK_LENGTH = 1000;
 
   const totalScore = Object.values(criteria).reduce((a, b) => a + b, 0);
   const isApproved = totalScore >= 70;
@@ -49,7 +50,17 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
             <h4 className="font-semibold flex items-center gap-2 mb-1">
               <AlertTriangle size={16} /> Critérios do Edital 2026
             </h4>
-            <p>Projetos com nota inferior a 70 pontos serão desclassificados automaticamente. Analise com base no manual.</p>
+            <p>
+              Projetos com nota inferior a 70 pontos serão desclassificados automaticamente. Analise com base no{' '}
+              <a 
+                href="https://www.emendastabata.com.br/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="underline font-medium hover:text-blue-900"
+              >
+                manual do Edital 2026
+              </a>.
+            </p>
           </div>
 
           {/* Criterion 1: History */}
@@ -134,12 +145,18 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
 
           {/* Feedback Textarea */}
           <div className="space-y-2 pt-4 border-t border-gray-100">
-            <label className="font-medium text-gray-700">Comentários do Avaliador</label>
+            <div className="flex justify-between items-center">
+              <label className="font-medium text-gray-700">Comentários do Avaliador</label>
+              <span className={`text-xs ${feedback.length > MAX_FEEDBACK_LENGTH * 0.9 ? 'text-red-500' : 'text-gray-400'}`}>
+                {feedback.length}/{MAX_FEEDBACK_LENGTH}
+              </span>
+            </div>
             <textarea
               className="w-full p-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 placeholder-gray-400"
               rows={4}
               placeholder="Justifique a pontuação ou adicione observações importantes sobre o projeto..."
               value={feedback}
+              maxLength={MAX_FEEDBACK_LENGTH}
               onChange={(e) => setFeedback(e.target.value)}
             />
           </div>
