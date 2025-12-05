@@ -1,0 +1,5 @@
+{
+  "name": "Gestor de Emendas 2026",
+  "description": "Dashboard para análise e gestão de emendas parlamentares baseado no Edital 2026, com sistema de pontuação de mérito e visualização de dados.",
+  "requestFramePermissions": []
+}
