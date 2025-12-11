@@ -6,6 +6,7 @@ import { Project, ProjectStatus, EvaluationCriteria } from './types';
 import { initialProjects } from './data';
 import ProjectCard from './components/ProjectCard';
 import EvaluationModal from './components/EvaluationModal';
+import EditalParameters from './components/EditalParameters';
 
 const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
@@ -13,6 +14,7 @@ const App: React.FC = () => {
   const [isEvaluationOpen, setIsEvaluationOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [municipalityFilter, setMunicipalityFilter] = useState<string>('all');
   const location = useLocation();
 
   // Dashboard Statistics
@@ -38,11 +40,17 @@ const App: React.FC = () => {
     return { total, approved, totalBudget, avgScore, chartData, statusData };
   }, [projects]);
 
+  // Unique Municipalities list for filter
+  const municipalities = useMemo(() => {
+    return Array.from(new Set(projects.map(p => p.municipality))).sort();
+  }, [projects]);
+
   const filteredProjects = projects.filter(p => {
     const matchesSearch = p.projectName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           p.entityName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = statusFilter === 'all' || p.status === statusFilter;
-    return matchesSearch && matchesFilter;
+    const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
+    const matchesMunicipality = municipalityFilter === 'all' || p.municipality === municipalityFilter;
+    return matchesSearch && matchesStatus && matchesMunicipality;
   });
 
   const handleOpenEvaluation = (project: Project) => {
@@ -74,10 +82,10 @@ const App: React.FC = () => {
             Lista de Projetos
           </Link>
           <div className="pt-4 mt-4 border-t border-slate-800 text-xs font-semibold text-slate-500 uppercase px-4">Configurações</div>
-          <button className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 w-full text-left">
+          <Link to="/parametros" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname === '/parametros' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>
             <Settings size={20} />
             Parâmetros do Edital
-          </button>
+          </Link>
         </nav>
         <div className="p-4 bg-slate-950 text-xs text-slate-500">
           v1.0.0 - Edital 2026
@@ -88,7 +96,9 @@ const App: React.FC = () => {
       <main className="flex-1 overflow-y-auto">
         <header className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center sticky top-0 z-10">
           <h2 className="text-lg font-semibold text-gray-800">
-            {location.pathname === '/' ? 'Visão Geral' : 'Gestão de Projetos'}
+            {location.pathname === '/' ? 'Visão Geral' : 
+             location.pathname === '/projetos' ? 'Gestão de Projetos' : 
+             'Parâmetros do Edital'}
           </h2>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-100">
@@ -202,6 +212,18 @@ const App: React.FC = () => {
                       <Filter size={18} />
                       Filtrar:
                     </div>
+                    
+                    <select 
+                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={municipalityFilter}
+                      onChange={(e) => setMunicipalityFilter(e.target.value)}
+                    >
+                      <option value="all">Todos os Municípios</option>
+                      {municipalities.map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+
                     <select 
                       className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={statusFilter}
@@ -237,6 +259,8 @@ const App: React.FC = () => {
                 )}
               </div>
             } />
+
+            <Route path="/parametros" element={<EditalParameters />} />
           </Routes>
         </div>
       </main>

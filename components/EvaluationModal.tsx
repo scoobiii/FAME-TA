@@ -19,7 +19,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
   const [feedback, setFeedback] = useState(project.feedback || '');
   const MAX_FEEDBACK_LENGTH = 1000;
 
-  const totalScore = Object.values(criteria).reduce((a, b) => a + b, 0);
+  const totalScore = (Object.values(criteria) as number[]).reduce((a, b) => a + b, 0);
   const isApproved = totalScore >= 70;
 
   const handleSliderChange = (key: keyof EvaluationCriteria, value: number) => {
