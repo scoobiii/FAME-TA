@@ -1,21 +1,22 @@
 import React, { useState, useMemo } from 'react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { LayoutDashboard, List, FileText, Settings, Search, Filter, PlusCircle, Users, Wallet } from 'lucide-react';
+import { LayoutDashboard, List, FileText, Settings, Search, Filter, PlusCircle, Users, Wallet, Sparkles, Bot } from 'lucide-react';
 import { Project, ProjectStatus, EvaluationCriteria } from './types';
 import { initialProjects } from './data';
 import ProjectCard from './components/ProjectCard';
-import EvaluationModal from './components/EvaluationModal';
+import ProjectDetails from './components/ProjectDetails';
 import EditalParameters from './components/EditalParameters';
+import Assistant from './components/Assistant';
 
 const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [isEvaluationOpen, setIsEvaluationOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [municipalityFilter, setMunicipalityFilter] = useState<string>('all');
+  const [isAnalyzingAll, setIsAnalyzingAll] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Dashboard Statistics
   const stats = useMemo(() => {
@@ -54,14 +55,59 @@ const App: React.FC = () => {
   });
 
   const handleOpenEvaluation = (project: Project) => {
-    setSelectedProject(project);
-    setIsEvaluationOpen(true);
+    navigate(`/projetos/${project.id}`);
   };
 
   const handleSaveEvaluation = (id: string, evaluation: EvaluationCriteria, status: ProjectStatus, score: number, feedback: string) => {
+    // Quando salvo manualmente via modal, assumimos que é o analista humano revisando
     setProjects(prev => prev.map(p => 
-      p.id === id ? { ...p, evaluation, status, score, feedback } : p
+      p.id === id ? { 
+        ...p, 
+        evaluation, 
+        status, 
+        score, 
+        feedback,
+        evaluator: 'JSSobrinho' // Assinatura do analista
+      } : p
     ));
+  };
+
+  const handleAutoAnalyzeAll = () => {
+    setIsAnalyzingAll(true);
+    
+    // Simula processamento da IA
+    setTimeout(() => {
+      setProjects(prev => prev.map(p => {
+        // Apenas analisa projetos pendentes
+        if (p.status !== ProjectStatus.PENDING) return p;
+
+        // Lógica Mockada da IA Tabata
+        const budgetOk = p.requestedValue >= 200000 && p.requestedValue <= 500000;
+        const descFactor = Math.min(p.description.length / 5, 20); // Mais texto = mais consistência (simplificação)
+        
+        const evaluation: EvaluationCriteria = {
+          history: 15, // Base média
+          consistency: Math.floor(10 + descFactor),
+          mandateRelation: p.theme.includes('Educação') || p.theme.includes('Inovação') ? 10 : 7,
+          socialImpact: 15,
+          budget: budgetOk ? 20 : 5 // Penaliza forte se fora do orçamento
+        };
+
+        const totalScore = Object.values(evaluation).reduce((a, b) => a + b, 0);
+        const status = totalScore >= 70 ? ProjectStatus.APPROVED : ProjectStatus.REJECTED;
+
+        return {
+          ...p,
+          evaluation,
+          score: totalScore,
+          status,
+          evaluator: 'IA (Tabata)',
+          feedback: `ANÁLISE AUTOMÁTICA:\n- Orçamento: ${budgetOk ? 'Adequado' : 'Inadequado'}.\n- Aderência ao Mandato: ${evaluation.mandateRelation}/10.\nRequer validação técnica humana.`
+        };
+      }));
+      
+      setIsAnalyzingAll(false);
+    }, 2500);
   };
 
   return (
@@ -77,7 +123,7 @@ const App: React.FC = () => {
             <LayoutDashboard size={20} />
             Dashboard
           </Link>
-          <Link to="/projetos" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname === '/projetos' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>
+          <Link to="/projetos" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname.includes('/projetos') ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>
             <List size={20} />
             Lista de Projetos
           </Link>
@@ -88,7 +134,7 @@ const App: React.FC = () => {
           </Link>
         </nav>
         <div className="p-4 bg-slate-950 text-xs text-slate-500">
-          v1.0.0 - Edital 2026
+          v1.0.1 - Edital 2026
         </div>
       </aside>
 
@@ -97,7 +143,7 @@ const App: React.FC = () => {
         <header className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center sticky top-0 z-10">
           <h2 className="text-lg font-semibold text-gray-800">
             {location.pathname === '/' ? 'Visão Geral' : 
-             location.pathname === '/projetos' ? 'Gestão de Projetos' : 
+             location.pathname.includes('/projetos') ? 'Gestão de Projetos' : 
              'Parâmetros do Edital'}
           </h2>
           <div className="flex items-center gap-4">
@@ -105,8 +151,14 @@ const App: React.FC = () => {
               <span className="w-2 h-2 rounded-full bg-blue-600"></span>
               Ciclo 2026 Ativo
             </div>
-            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold">
-              TA
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-right hidden sm:block">
+                <span className="block font-bold text-gray-700">JSSobrinho</span>
+                <span className="block text-xs text-gray-500">Analista Chefe</span>
+              </span>
+              <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold border-2 border-slate-300">
+                JS
+              </div>
             </div>
           </div>
         </header>
@@ -128,10 +180,10 @@ const App: React.FC = () => {
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                     <div className="flex items-center justify-between mb-4">
                       <div className="p-2 bg-green-100 rounded-lg text-green-600"><Users size={24} /></div>
-                      <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">Aprovados</span>
+                      <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">Classificados</span>
                     </div>
                     <h3 className="text-3xl font-bold text-gray-900">{stats.approved}</h3>
-                    <p className="text-sm text-gray-500 mt-1">Classificados p/ voto popular</p>
+                    <p className="text-sm text-gray-500 mt-1">Aptos ao voto popular</p>
                   </div>
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                     <div className="flex items-center justify-between mb-4">
@@ -195,7 +247,7 @@ const App: React.FC = () => {
 
             <Route path="/projetos" element={
               <div className="space-y-6">
-                {/* Filters */}
+                {/* Filters & Actions */}
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                   <div className="relative w-full md:w-96">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
@@ -208,6 +260,25 @@ const App: React.FC = () => {
                     />
                   </div>
                   <div className="flex items-center gap-3 w-full md:w-auto">
+                    
+                    {/* Botão AI Analysis */}
+                    <button 
+                      onClick={handleAutoAnalyzeAll}
+                      disabled={isAnalyzingAll}
+                      className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition flex items-center gap-2 shadow-sm shadow-purple-200 disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                      {isAnalyzingAll ? (
+                        <>Analisando...</>
+                      ) : (
+                        <>
+                          <Sparkles size={18} />
+                          Tabata AI: Analisar Pendentes
+                        </>
+                      )}
+                    </button>
+
+                    <div className="h-6 w-px bg-gray-300 mx-2 hidden md:block"></div>
+
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Filter size={18} />
                       Filtrar:
@@ -235,9 +306,6 @@ const App: React.FC = () => {
                       <option value={ProjectStatus.APPROVED}>Classificados</option>
                       <option value={ProjectStatus.REJECTED}>Desclassificados</option>
                     </select>
-                    <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2">
-                      <PlusCircle size={18} /> Novo
-                    </button>
                   </div>
                 </div>
 
@@ -259,20 +327,18 @@ const App: React.FC = () => {
                 )}
               </div>
             } />
+            
+            <Route path="/projetos/:projectId" element={
+              <ProjectDetails projects={projects} onSave={handleSaveEvaluation} />
+            } />
 
             <Route path="/parametros" element={<EditalParameters />} />
           </Routes>
         </div>
       </main>
 
-      {/* Evaluation Modal */}
-      {isEvaluationOpen && selectedProject && (
-        <EvaluationModal 
-          project={selectedProject} 
-          onClose={() => setIsEvaluationOpen(false)} 
-          onSave={handleSaveEvaluation}
-        />
-      )}
+      {/* Assistant */}
+      <Assistant />
     </div>
   );
 };

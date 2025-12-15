@@ -21,6 +21,7 @@ const EditalParameters: React.FC = () => {
       year: 2026
     },
     scoring: {
+      score: 100, // Pontuação Máxima
       minScoreToPass: 70,
       weights: {
         history: 20,
@@ -195,6 +196,19 @@ const EditalParameters: React.FC = () => {
 
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <span className="font-semibold text-gray-700">Pontuação Máxima</span>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="number" 
+                  value={params.scoring.score}
+                  onChange={(e) => handleChange('scoring', 'score', Number(e.target.value))}
+                  className="w-16 p-1 text-center border border-gray-300 rounded focus:outline-none font-bold text-blue-600"
+                />
+                <span className="text-gray-500 text-sm">pontos</span>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
               <span className="font-semibold text-gray-700">Nota de Corte (Classificação)</span>
               <div className="flex items-center gap-2">
                 <input 
@@ -208,7 +222,7 @@ const EditalParameters: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              <p className="text-sm font-medium text-gray-700 mb-2">Distribuição de Pesos (Total: 100)</p>
+              <p className="text-sm font-medium text-gray-700 mb-2">Distribuição de Pesos (Total: {params.scoring.score})</p>
               
               {Object.entries(params.scoring.weights).map(([key, val]) => (
                 <div key={key} className="flex items-center justify-between">
@@ -222,7 +236,7 @@ const EditalParameters: React.FC = () => {
                     <div className="w-32 bg-gray-200 rounded-full h-2">
                       <div 
                         className="bg-purple-500 h-2 rounded-full" 
-                        style={{ width: `${(val as number / 100) * 100}%` }}
+                        style={{ width: `${(val as number / params.scoring.score) * 100}%` }}
                       ></div>
                     </div>
                     <span className="text-xs font-mono w-8 text-right">{val as number}</span>

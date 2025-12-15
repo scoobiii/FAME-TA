@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project, EvaluationCriteria, ProjectStatus } from '../types';
-import { X, Save, AlertTriangle } from 'lucide-react';
+import { X, Save, AlertTriangle, Sparkles, Loader2, Bot, User } from 'lucide-react';
 
 interface EvaluationModalProps {
   project: Project;
@@ -17,10 +17,13 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
     budget: 0
   });
   const [feedback, setFeedback] = useState(project.feedback || '');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const MAX_FEEDBACK_LENGTH = 1000;
 
   const totalScore = (Object.values(criteria) as number[]).reduce((a, b) => a + b, 0);
   const isApproved = totalScore >= 70;
+  
+  const isAiEvaluated = project.evaluator?.includes('IA');
 
   const handleSliderChange = (key: keyof EvaluationCriteria, value: number) => {
     setCriteria(prev => ({ ...prev, [key]: value }));
@@ -32,12 +35,44 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
     onClose();
   };
 
+  const generateAIAnalysis = () => {
+    setIsAnalyzing(true);
+    
+    // Simulating AI Processing Time
+    setTimeout(() => {
+      // Mock logic to determine scores based on content length or keywords to make it feel somewhat dynamic
+      const descLength = project.description.length;
+      const budgetOk = project.requestedValue >= 200000 && project.requestedValue <= 500000;
+      
+      const suggestedCriteria: EvaluationCriteria = {
+        history: descLength > 50 ? 15 : 10,
+        consistency: descLength > 80 ? 25 : 15,
+        mandateRelation: project.theme.includes('Educação') || project.theme.includes('Social') ? 9 : 6,
+        socialImpact: 15,
+        budget: budgetOk ? 20 : 10
+      };
+
+      const justification = `ANÁLISE AUTOMÁTICA (Gemini):\n\n• Histórico (${suggestedCriteria.history}/20): A entidade apresenta tempo de atuação razoável.\n• Consistência (${suggestedCriteria.consistency}/30): Proposta clara com objetivos definidos.\n• Relação com Mandato (${suggestedCriteria.mandateRelation}/10): O tema "${project.theme}" possui aderência.\n• Impacto Social (${suggestedCriteria.socialImpact}/20): Público-alvo definido (${project.beneficiaries}).\n• Orçamento (${suggestedCriteria.budget}/20): Valor R$ ${project.requestedValue.toLocaleString('pt-BR')} ${budgetOk ? 'adequado' : 'inadequado'}.`;
+
+      setCriteria(suggestedCriteria);
+      setFeedback(justification);
+      setIsAnalyzing(false);
+    }, 1500);
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Análise de Mérito</h2>
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              Análise de Mérito
+              {isAiEvaluated && (
+                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full flex items-center gap-1 font-normal">
+                  <Bot size={12} /> Pré-análise IA
+                </span>
+              )}
+            </h2>
             <p className="text-sm text-gray-500">Projeto: {project.projectName}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
@@ -46,21 +81,57 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
         </div>
 
         <div className="p-6 space-y-6">
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-sm text-blue-800 mb-6">
-            <h4 className="font-semibold flex items-center gap-2 mb-1">
-              <AlertTriangle size={16} /> Critérios do Edital 2026
-            </h4>
-            <p>
-              Projetos com nota inferior a 70 pontos serão desclassificados automaticamente. Analise com base no{' '}
-              <a 
-                href="https://www.emendastabata.com.br/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="underline font-medium hover:text-blue-900"
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Entidade Proponente</label>
+              <input 
+                type="text" 
+                value={project.entityName} 
+                readOnly 
+                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">CNPJ</label>
+              <input 
+                type="text" 
+                value={project.cnpj} 
+                readOnly 
+                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-mono focus:outline-none"
+              />
+            </div>
+          </div>
+          
+          {/* Status do Avaliador Anterior */}
+          {project.evaluator && (
+             <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex items-center gap-2 text-sm text-gray-600">
+                <span className="font-semibold">Última avaliação por:</span>
+                <span className={`flex items-center gap-1 ${isAiEvaluated ? 'text-purple-600 font-bold' : 'text-blue-600 font-bold'}`}>
+                   {isAiEvaluated ? <Bot size={14} /> : <User size={14} />}
+                   {project.evaluator}
+                </span>
+             </div>
+          )}
+
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-sm text-blue-800 mb-6 flex justify-between items-center">
+            <div className="flex-1 pr-4">
+              <h4 className="font-semibold flex items-center gap-2 mb-1">
+                <AlertTriangle size={16} /> Critérios do Edital 2026
+              </h4>
+              <p>
+                Nota de corte: 70 pontos. Ao salvar, você assinará como <strong>JSSobrinho</strong>.
+              </p>
+            </div>
+            {!isAiEvaluated && (
+              <button 
+                onClick={generateAIAnalysis}
+                disabled={isAnalyzing}
+                className="flex items-center gap-2 bg-white text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-50 transition-all shadow-sm disabled:opacity-70 whitespace-nowrap"
               >
-                manual do Edital 2026
-              </a>.
-            </p>
+                {isAnalyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                Sugestão IA
+              </button>
+            )}
           </div>
 
           {/* Criterion 1: History */}
@@ -71,16 +142,11 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
             </div>
             <p className="text-xs text-gray-500">Experiência prévia, atuação no estado, parcerias públicas e participação popular.</p>
             <input 
-              type="range" min="0" max="20" step="5"
+              type="range" min="0" max="20" step="1"
               value={criteria.history}
               onChange={(e) => handleSliderChange('history', parseInt(e.target.value))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
-            <div className="flex justify-between text-xs text-gray-400">
-              <span>Fraco</span>
-              <span>Regular</span>
-              <span>Excelente</span>
-            </div>
           </div>
 
           {/* Criterion 2: Consistency */}
@@ -91,7 +157,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
             </div>
             <p className="text-xs text-gray-500">Detalhamento da proposta, viabilidade financeira e clareza nos resultados.</p>
             <input 
-              type="range" min="0" max="30" step="5"
+              type="range" min="0" max="30" step="1"
               value={criteria.consistency}
               onChange={(e) => handleSliderChange('consistency', parseInt(e.target.value))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
@@ -121,7 +187,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
             </div>
             <p className="text-xs text-gray-500">Público-alvo (minorias), quantidade de beneficiários e redução de desigualdades.</p>
             <input 
-              type="range" min="0" max="20" step="5"
+              type="range" min="0" max="20" step="1"
               value={criteria.socialImpact}
               onChange={(e) => handleSliderChange('socialImpact', parseInt(e.target.value))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
@@ -136,7 +202,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
             </div>
             <p className="text-xs text-gray-500">Adequação aos limites (200k-500k) e detalhamento dos gastos.</p>
             <input 
-              type="range" min="0" max="20" step="5"
+              type="range" min="0" max="20" step="1"
               value={criteria.budget}
               onChange={(e) => handleSliderChange('budget', parseInt(e.target.value))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
@@ -146,14 +212,14 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
           {/* Feedback Textarea */}
           <div className="space-y-2 pt-4 border-t border-gray-100">
             <div className="flex justify-between items-center">
-              <label className="font-medium text-gray-700">Comentários do Avaliador</label>
+              <label className="font-medium text-gray-700">Comentários e Justificativa</label>
               <span className={`text-xs ${feedback.length > MAX_FEEDBACK_LENGTH * 0.9 ? 'text-red-500' : 'text-gray-400'}`}>
                 {feedback.length}/{MAX_FEEDBACK_LENGTH}
               </span>
             </div>
             <textarea
-              className="w-full p-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 placeholder-gray-400"
-              rows={4}
+              className="w-full p-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 placeholder-gray-400 font-sans leading-relaxed"
+              rows={8}
               placeholder="Justifique a pontuação ou adicione observações importantes sobre o projeto..."
               value={feedback}
               maxLength={MAX_FEEDBACK_LENGTH}
@@ -189,7 +255,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
             className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm shadow-blue-200"
           >
             <Save size={18} />
-            Salvar Avaliação
+            Salvar (Assinar como JSSobrinho)
           </button>
         </div>
       </div>
