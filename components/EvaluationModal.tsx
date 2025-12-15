@@ -119,7 +119,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
                 <AlertTriangle size={16} /> Critérios do Edital 2026
               </h4>
               <p>
-                Nota de corte: 70 pontos. Ao salvar, você assinará como <strong>JSSobrinho</strong>.
+                Nota de corte: 70 pontos. Ao salvar, você assinará como <strong>Tabata Amaral</strong>.
               </p>
             </div>
             {!isAiEvaluated && (
@@ -255,7 +255,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({ project, onClose, onS
             className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm shadow-blue-200"
           >
             <Save size={18} />
-            Salvar (Assinar como JSSobrinho)
+            Salvar (Assinar como Tabata Amaral)
           </button>
         </div>
       </div>

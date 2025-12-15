@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Treemap } from 'recharts';
 import { LayoutDashboard, List, FileText, Settings, Search, Filter, PlusCircle, Users, Wallet, Sparkles, Bot } from 'lucide-react';
 import { Project, ProjectStatus, EvaluationCriteria } from './types';
 import { initialProjects } from './data';
@@ -9,14 +9,83 @@ import ProjectDetails from './components/ProjectDetails';
 import EditalParameters from './components/EditalParameters';
 import Assistant from './components/Assistant';
 
+const STATUS_COLORS: Record<string, string> = {
+  [ProjectStatus.APPROVED]: '#10B981', // Verde
+  [ProjectStatus.REJECTED]: '#EF4444', // Vermelho
+  [ProjectStatus.PENDING]: '#9CA3AF',  // Cinza
+  [ProjectStatus.UNDER_REVIEW]: '#3B82F6' // Azul
+};
+
+const CustomizedTreemapContent = (props: any) => {
+  const { root, depth, x, y, width, height, index, name, value } = props;
+  
+  // Define cor baseada no status (que é o 'name' do nó folha)
+  const color = STATUS_COLORS[name as string] || '#CBD5E1';
+
+  return (
+    <g>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        style={{
+          fill: color,
+          stroke: '#fff',
+          strokeWidth: 2 / (depth + 1e-10),
+          strokeOpacity: 1 / (depth + 1e-10),
+        }}
+      />
+      {/* Mostra texto apenas se o retângulo for grande o suficiente */}
+      {width > 40 && height > 30 && (
+        <text
+          x={x + width / 2}
+          y={y + height / 2}
+          textAnchor="middle"
+          fill="#fff"
+          fontSize={11}
+          fontWeight="bold"
+          style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.4)' }}
+        >
+          {name === ProjectStatus.APPROVED ? 'APROV' : 
+           name === ProjectStatus.REJECTED ? 'REPROV' : 
+           name === ProjectStatus.PENDING ? 'PEND' : name}
+        </text>
+      )}
+      {width > 40 && height > 30 && (
+        <text
+          x={x + width / 2}
+          y={y + height / 2 + 12}
+          textAnchor="middle"
+          fill="#fff"
+          fontSize={10}
+          style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.4)' }}
+        >
+          {value}
+        </text>
+      )}
+    </g>
+  );
+};
+
 const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [municipalityFilter, setMunicipalityFilter] = useState<string>('all');
+  const [evaluatorFilter, setEvaluatorFilter] = useState<string>('all');
   const [isAnalyzingAll, setIsAnalyzingAll] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Helper para determinar o avaliador efetivo
+  const getEffectiveEvaluator = (p: Project) => {
+    // Regra: Projetos sem análise (Pendentes) ou sem avaliador definido são da Tabata Amaral
+    if (p.status === ProjectStatus.PENDING || !p.evaluator) {
+      return 'Tabata Amaral';
+    }
+    return p.evaluator;
+  };
 
   // Dashboard Statistics
   const stats = useMemo(() => {
@@ -33,12 +102,38 @@ const App: React.FC = () => {
     const chartData = Object.keys(themeData).map(key => ({ name: key, count: themeData[key] }));
     
     const statusData = [
-        { name: 'Classificado', value: approved, color: '#10B981' },
-        { name: 'Pendente', value: projects.filter(p => p.status === ProjectStatus.PENDING).length, color: '#9CA3AF' },
-        { name: 'Desclassificado', value: projects.filter(p => p.status === ProjectStatus.REJECTED).length, color: '#EF4444' },
+        { name: 'Classificado', value: approved, color: STATUS_COLORS[ProjectStatus.APPROVED] },
+        { name: 'Pendente', value: projects.filter(p => p.status === ProjectStatus.PENDING).length, color: STATUS_COLORS[ProjectStatus.PENDING] },
+        { name: 'Desclassificado', value: projects.filter(p => p.status === ProjectStatus.REJECTED).length, color: STATUS_COLORS[ProjectStatus.REJECTED] },
     ];
 
-    return { total, approved, totalBudget, avgScore, chartData, statusData };
+    // Treemap Data: Hierarquia Analista -> Status
+    // Estrutura: { name: 'Analista', children: [ { name: 'Aprovado', size: 10 }, { name: 'Reprovado', size: 5 } ] }
+    
+    const groupedData: Record<string, Record<string, number>> = {};
+
+    projects.forEach(p => {
+      const evaluator = getEffectiveEvaluator(p);
+      const status = p.status;
+
+      if (!groupedData[evaluator]) {
+        groupedData[evaluator] = {};
+      }
+      if (!groupedData[evaluator][status]) {
+        groupedData[evaluator][status] = 0;
+      }
+      groupedData[evaluator][status]++;
+    });
+
+    const treemapData = Object.keys(groupedData).map(evaluator => ({
+      name: evaluator,
+      children: Object.keys(groupedData[evaluator]).map(status => ({
+        name: status,
+        size: groupedData[evaluator][status]
+      }))
+    }));
+
+    return { total, approved, totalBudget, avgScore, chartData, statusData, treemapData };
   }, [projects]);
 
   // Unique Municipalities list for filter
@@ -46,12 +141,21 @@ const App: React.FC = () => {
     return Array.from(new Set(projects.map(p => p.municipality))).sort();
   }, [projects]);
 
+  // Unique Evaluators list for filter
+  const evaluators = useMemo(() => {
+    return Array.from(new Set(projects.map(p => getEffectiveEvaluator(p)))).sort();
+  }, [projects]);
+
   const filteredProjects = projects.filter(p => {
     const matchesSearch = p.projectName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           p.entityName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
     const matchesMunicipality = municipalityFilter === 'all' || p.municipality === municipalityFilter;
-    return matchesSearch && matchesStatus && matchesMunicipality;
+    
+    const effectiveEvaluator = getEffectiveEvaluator(p);
+    const matchesEvaluator = evaluatorFilter === 'all' || effectiveEvaluator === evaluatorFilter;
+    
+    return matchesSearch && matchesStatus && matchesMunicipality && matchesEvaluator;
   });
 
   const handleOpenEvaluation = (project: Project) => {
@@ -59,7 +163,6 @@ const App: React.FC = () => {
   };
 
   const handleSaveEvaluation = (id: string, evaluation: EvaluationCriteria, status: ProjectStatus, score: number, feedback: string) => {
-    // Quando salvo manualmente via modal, assumimos que é o analista humano revisando
     setProjects(prev => prev.map(p => 
       p.id === id ? { 
         ...p, 
@@ -67,7 +170,7 @@ const App: React.FC = () => {
         status, 
         score, 
         feedback,
-        evaluator: 'JSSobrinho' // Assinatura do analista
+        evaluator: 'Tabata Amaral' // Assinatura do analista chefe ao salvar
       } : p
     ));
   };
@@ -75,35 +178,36 @@ const App: React.FC = () => {
   const handleAutoAnalyzeAll = () => {
     setIsAnalyzingAll(true);
     
-    // Simula processamento da IA
     setTimeout(() => {
       setProjects(prev => prev.map(p => {
-        // Apenas analisa projetos pendentes
-        if (p.status !== ProjectStatus.PENDING) return p;
-
-        // Lógica Mockada da IA Tabata
-        const budgetOk = p.requestedValue >= 200000 && p.requestedValue <= 500000;
-        const descFactor = Math.min(p.description.length / 5, 20); // Mais texto = mais consistência (simplificação)
         
-        const evaluation: EvaluationCriteria = {
-          history: 15, // Base média
-          consistency: Math.floor(10 + descFactor),
-          mandateRelation: p.theme.includes('Educação') || p.theme.includes('Inovação') ? 10 : 7,
-          socialImpact: 15,
-          budget: budgetOk ? 20 : 5 // Penaliza forte se fora do orçamento
-        };
+        // 1. Lógica para projetos PENDENTES (Análise completa IA)
+        if (p.status === ProjectStatus.PENDING) {
+          const budgetOk = p.requestedValue >= 200000 && p.requestedValue <= 500000;
+          const descFactor = Math.min(p.description.length / 5, 20); 
+          
+          const evaluation: EvaluationCriteria = {
+            history: 15,
+            consistency: Math.floor(10 + descFactor),
+            mandateRelation: p.theme.includes('Educação') || p.theme.includes('Inovação') ? 10 : 7,
+            socialImpact: 15,
+            budget: budgetOk ? 20 : 5
+          };
 
-        const totalScore = Object.values(evaluation).reduce((a, b) => a + b, 0);
-        const status = totalScore >= 70 ? ProjectStatus.APPROVED : ProjectStatus.REJECTED;
+          const totalScore = Object.values(evaluation).reduce((a, b) => a + b, 0);
+          const status = totalScore >= 70 ? ProjectStatus.APPROVED : ProjectStatus.REJECTED;
 
-        return {
-          ...p,
-          evaluation,
-          score: totalScore,
-          status,
-          evaluator: 'IA (Tabata)',
-          feedback: `ANÁLISE AUTOMÁTICA:\n- Orçamento: ${budgetOk ? 'Adequado' : 'Inadequado'}.\n- Aderência ao Mandato: ${evaluation.mandateRelation}/10.\nRequer validação técnica humana.`
-        };
+          return {
+            ...p,
+            evaluation,
+            score: totalScore,
+            status,
+            evaluator: 'IA (Tabata)',
+            feedback: `ANÁLISE AUTOMÁTICA:\n- Orçamento: ${budgetOk ? 'Adequado' : 'Inadequado'}.\n- Aderência ao Mandato: ${evaluation.mandateRelation}/10.\nRequer validação técnica humana.`
+          };
+        } 
+        
+        return p;
       }));
       
       setIsAnalyzingAll(false);
@@ -153,11 +257,11 @@ const App: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm text-right hidden sm:block">
-                <span className="block font-bold text-gray-700">JSSobrinho</span>
+                <span className="block font-bold text-gray-700">Tabata Amaral</span>
                 <span className="block text-xs text-gray-500">Analista Chefe</span>
               </span>
               <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold border-2 border-slate-300">
-                JS
+                TA
               </div>
             </div>
           </div>
@@ -204,8 +308,9 @@ const App: React.FC = () => {
                 </div>
 
                 {/* Charts Area */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {/* Bar Chart */}
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                     <h3 className="text-lg font-bold text-gray-800 mb-6">Projetos por Área Temática</h3>
                     <div className="h-72">
                       <ResponsiveContainer width="100%" height="100%">
@@ -219,6 +324,8 @@ const App: React.FC = () => {
                       </ResponsiveContainer>
                     </div>
                   </div>
+
+                  {/* Pie Chart */}
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                     <h3 className="text-lg font-bold text-gray-800 mb-6">Status da Análise</h3>
                     <div className="h-72">
@@ -238,6 +345,40 @@ const App: React.FC = () => {
                           <Tooltip />
                           <Legend verticalAlign="bottom" height={36} />
                         </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Treemap - Projects by Evaluator & Status */}
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 xl:col-span-1 lg:col-span-2">
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">Produtividade dos Analistas</h3>
+                    <p className="text-xs text-gray-500 mb-4">Volume de projetos por analista e status</p>
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <Treemap
+                          data={stats.treemapData}
+                          dataKey="size"
+                          ratio={4 / 3}
+                          stroke="#fff"
+                          fill="#8884d8"
+                          content={<CustomizedTreemapContent />}
+                        >
+                          <Tooltip 
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                // O payload no treemap aninhado do Recharts às vezes vem diferente
+                                const data = payload[0].payload;
+                                return (
+                                  <div className="bg-white p-2 border border-gray-200 shadow-lg rounded-lg text-xs">
+                                    <p className="font-bold">{data.root ? data.root.name : data.name}</p>
+                                    <p className="text-gray-600">{data.name}: {data.value} projetos</p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                        </Treemap>
                       </ResponsiveContainer>
                     </div>
                   </div>
@@ -268,11 +409,11 @@ const App: React.FC = () => {
                       className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition flex items-center gap-2 shadow-sm shadow-purple-200 disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                       {isAnalyzingAll ? (
-                        <>Analisando...</>
+                        <>Processando...</>
                       ) : (
                         <>
                           <Sparkles size={18} />
-                          Tabata AI: Analisar Pendentes
+                          Tabata AI: Revisão Geral
                         </>
                       )}
                     </button>
@@ -285,7 +426,7 @@ const App: React.FC = () => {
                     </div>
                     
                     <select 
-                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[150px]"
                       value={municipalityFilter}
                       onChange={(e) => setMunicipalityFilter(e.target.value)}
                     >
@@ -305,6 +446,17 @@ const App: React.FC = () => {
                       <option value={ProjectStatus.UNDER_REVIEW}>Em Análise</option>
                       <option value={ProjectStatus.APPROVED}>Classificados</option>
                       <option value={ProjectStatus.REJECTED}>Desclassificados</option>
+                    </select>
+
+                    <select 
+                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[150px]"
+                      value={evaluatorFilter}
+                      onChange={(e) => setEvaluatorFilter(e.target.value)}
+                    >
+                      <option value="all">Todos os Analistas</option>
+                      {evaluators.map(ev => (
+                        <option key={ev} value={ev}>{ev}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
